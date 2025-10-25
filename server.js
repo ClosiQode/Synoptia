@@ -34,11 +34,67 @@ app.use((req, res, next) => {
 
 // Initialize services
 const conversationManager = new ConversationManager();
-const conversationalGenerator = new ConversationalGenerator(conversationManager);
 const validator = new WorkflowValidator();
 const templateManager = new TemplateManager();
 const feedbackCollector = new FeedbackCollector();
 const n8nApi = new N8nApi();
+
+// Check RAG mode
+let conversationalGenerator;
+if (process.env.ENABLE_RAG === 'false') {
+  logger.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  logger.warn('⚠️  MODE DÉGRADÉ : RAG DÉSACTIVÉ');
+  logger.warn('');
+  logger.warn('Le serveur démarre mais AUCUNE génération de workflow ne sera possible.');
+  logger.warn('Synoptia Builder³ a BESOIN du RAG (3907 points Qdrant) pour :');
+  logger.warn('  • Valider les nodes n8n disponibles (El Planificator)');
+  logger.warn('  • Détecter les hallucinations (El Supervisor)');
+  logger.warn('  • Enrichir les prompts avec documentation (El Generator)');
+  logger.warn('');
+  logger.warn('📖 Guide de configuration : voir DOCUMENTATION_INDEX.md');
+  logger.warn('🔧 Setup Qdrant rapide : docker-compose up -d qdrant');
+  logger.warn('');
+  logger.warn('Ce mode permet de tester :');
+  logger.warn('  ✅ Le démarrage du serveur (ports, dépendances)');
+  logger.warn('  ✅ L\'interface web (http://localhost:3002)');
+  logger.warn('  ✅ La connexion n8n (health check)');
+  logger.warn('  ❌ La génération de workflows (requiert RAG actif)');
+  logger.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  // Stub generator qui refuse les générations
+  conversationalGenerator = {
+    async processMessage(message, sessionId, options) {
+      return {
+        success: false,
+        message: '❌ **RAG désactivé** - Impossible de générer des workflows.\n\n' +
+          '**Pourquoi ?**\n' +
+          '• Synoptia utilise un système RAG avec 3907 points de connaissance\n' +
+          '• Sans RAG, l\'IA invente des nodes n8n qui n\'existent pas (hallucinations)\n' +
+          '• La pipeline multi-agent (Planificator → Generator → Supervisor) nécessite Qdrant\n\n' +
+          '**Solution :**\n' +
+          '1. Configurez Qdrant (voir DOCUMENTATION_INDEX.md)\n' +
+          '2. Retirez `ENABLE_RAG=false` de votre .env\n' +
+          '3. Redémarrez le serveur\n\n' +
+          '📖 Documentation complète : voir README.md',
+        workflow: null,
+        sessionId: sessionId || require('crypto').randomUUID(),
+        validation: { valid: false, errors: ['RAG désactivé'], warnings: [] },
+        metadata: { ragDisabled: true }
+      };
+    },
+    getSessionStats() {
+      return { error: 'RAG désactivé' };
+    },
+    getGlobalStats() {
+      return { error: 'RAG désactivé' };
+    },
+    async close() {
+      // No-op
+    }
+  };
+} else {
+  conversationalGenerator = new ConversationalGenerator(conversationManager);
+}
 
 // Initialize on startup
 let isInitialized = true;

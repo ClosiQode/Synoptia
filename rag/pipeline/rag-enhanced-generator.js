@@ -93,7 +93,7 @@ class RAGEnhancedGenerator {
   constructor() {
     this.anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: config.anthropic.timeout
+      timeout: config?.anthropic?.timeout ?? 120000 // Fallback: 120s par défaut
     });
 
     this.retriever = new WorkflowContextRetriever();
